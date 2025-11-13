@@ -1,0 +1,48 @@
+# Node.js dependencies
+/node_modules
+
+# Build directories (for frontend and backend)
+/frontend/build
+/frontend/dist
+/backend/build
+/backend/dist
+
+# Environment files
+/.env
+/.env.*  # Ignores all environment files
+/.env.local
+/.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS-specific files
+.DS_Store  # macOS
+Thumbs.db  # Windows
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Coverage directory for test reports
+/coverage
+
+# Temporary files (e.g., for caching)
+*.swp
+*.bak
+
+# Yarn lock file (if you're using npm)
+yarn.lock
+
+# Frontend-specific
+/frontend/.cache
+/frontend/node_modules
+/frontend/.next   # Next.js
+/frontend/.nuxt   # Nuxt.js
+
+# Backend-specific
+/backend/node_modules
+/backend/.cache
