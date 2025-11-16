@@ -1,0 +1,15 @@
+// .devcontainer/devcontainer.json
+{
+  "name": "React and Express App",
+  "dockerFile": "Dockerfile",  // Optional, if using a custom Dockerfile
+  "appPort": [3000, 5000],
+  "postCreateCommand": "npm install",
+  "runArgs": ["--init", "--privileged"],
+  "extensions": [
+    "dbaeumer.vscode-eslint",
+    "ms-vscode.vscode-node-azure-pack"
+  ],
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  }
+}
