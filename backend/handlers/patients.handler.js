@@ -1,147 +1,238 @@
 const patientService = require('../services/patient.service');
 
-async function handleCreatePatient(request, response) {
-  try {
-    const clinicianId = request.user.userId;
-    const patientData = request.body;
-
-    const requiredFields = ['first_name', 'last_name', 'date_of_birth', 'gender'];
-    const missingFields = requiredFields.filter(field => !patientData[field]);
-
-    if (missingFields.length > 0) {
-      return response.status(400).json({
-        error: 'Missing required patient information',
-        missing_fields: missingFields
-      });
-    }
-
-    const creationResult = await patientService.createNewPatientRecord(patientData, clinicianId);
-
-    response.status(201).json({
-      success: true,
-      message: 'Patient record created successfully',
-      patient: creationResult
-    });
-
-  } catch (error) {
-    console.error('Patient creation error:', error.message);
-    
-    response.status(500).json({
-      error: 'Failed to create patient record',
-      details: 'System encountered an unexpected error'
-    });
-  }
-}
-
 async function handleGetPatients(request, response) {
   try {
-    const {
-      page = 1,
-      limit = 25,
-      search = '',
-      provider = null
-    } = request.query;
-
-    const patientsResult = await patientService.retrievePatientList({
-      page_number: parseInt(page),
-      items_per_page: parseInt(limit),
-      search_query: search,
-      provider_filter: provider
-    });
-
+    const patients = await patientService.getAllPatients();
+    
     response.json({
       success: true,
-      data: patientsResult.patients,
-      pagination: patientsResult.pagination
+      data: patients,
+      count: patients.length
     });
 
   } catch (error) {
-    console.error('Patient retrieval error:', error.message);
+    console.error('Get patients error:', error.message);
     
     response.status(500).json({
       error: 'Failed to retrieve patient records',
-      details: 'Database query failed'
+      details: 'Please try again later'
     });
   }
 }
 
 async function handleGetPatientDetails(request, response) {
   try {
-    const patientId = parseInt(request.params.patientId);
+    const { id } = request.params;
     
-    if (isNaN(patientId)) {
+    if (!id) {
       return response.status(400).json({
-        error: 'Invalid patient identifier provided'
+        error: 'Patient ID is required'
       });
     }
 
-    const patientDetails = await patientService.getPatientDetailedRecord(patientId);
-    const clinicalSummary = await patientService.getPatientClinicalSummary(patientId);
+    const patient = await patientService.getPatientById(id);
+    
+    if (!patient) {
+      return response.status(404).json({
+        error: 'Patient record not found',
+        details: `No patient found with ID: ${id}`
+      });
+    }
 
     response.json({
       success: true,
-      patient: patientDetails,
-      clinical_summary: clinicalSummary
+      data: patient
     });
 
   } catch (error) {
-    console.error('Patient details error:', error.message);
+    console.error('Get patient details error:', error.message);
     
-    if (error.message.includes('not found')) {
-      return response.status(404).json({
-        error: 'Patient record not found'
+    response.status(500).json({
+      error: 'Failed to retrieve patient details',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleCreatePatient(request, response) {
+  try {
+    const {
+      medical_record_number,
+      id_number,
+      primary_provider_id,
+      first_name,
+      last_name,
+      date_of_birth,
+      gender,
+      contact_phone,
+      email,
+      residential_address,
+      emergency_contact_name,
+      emergency_contact_phone,
+      insurance_provider,
+      insurance_policy_number,
+      significant_medical_history,
+      known_allergies,
+      blood_type
+    } = request.body;
+
+    // Required field validation
+    if (!medical_record_number || !first_name || !last_name || !date_of_birth || !gender) {
+      return response.status(400).json({
+        error: 'Missing required fields',
+        details: 'Medical record number, first name, last name, date of birth, and gender are mandatory'
+      });
+    }
+
+    const newPatient = await patientService.createPatient({
+      medical_record_number,
+      id_number,
+      primary_provider_id,
+      first_name,
+      last_name,
+      date_of_birth,
+      gender,
+      contact_phone,
+      email,
+      residential_address,
+      emergency_contact_name,
+      emergency_contact_phone,
+      insurance_provider,
+      insurance_policy_number,
+      significant_medical_history,
+      known_allergies,
+      blood_type,
+      created_by_user: request.user.user_id
+    });
+
+    response.status(201).json({
+      success: true,
+      message: 'Patient record created successfully',
+      data: newPatient
+    });
+
+  } catch (error) {
+    console.error('Create patient error:', error.message);
+    
+    if (error.message.includes('already exists') || error.message.includes('duplicate')) {
+      return response.status(409).json({
+        error: 'Patient registration failed',
+        details: error.message
       });
     }
 
     response.status(500).json({
-      error: 'Failed to retrieve patient information'
+      error: 'Patient registration service unavailable',
+      details: 'Please try again later'
     });
   }
 }
 
 async function handleUpdatePatient(request, response) {
   try {
-    const patientId = parseInt(request.params.patientId);
+    const { id } = request.params;
     const updateData = request.body;
-    const clinicianId = request.user.userId;
 
-    if (isNaN(patientId)) {
+    if (!id) {
       return response.status(400).json({
-        error: 'Invalid patient identifier provided'
+        error: 'Patient ID is required'
       });
     }
 
-    const updateResult = await patientService.updatePatientInformation(
-      patientId, 
-      updateData, 
-      clinicianId
-    );
+    const updatedPatient = await patientService.updatePatient(id, updateData);
+    
+    if (!updatedPatient) {
+      return response.status(404).json({
+        error: 'Patient record not found',
+        details: `No patient found with ID: ${id}`
+      });
+    }
 
     response.json({
       success: true,
-      message: 'Patient information updated successfully',
-      update_result: updateResult
+      message: 'Patient record updated successfully',
+      data: updatedPatient
     });
 
   } catch (error) {
-    console.error('Patient update error:', error.message);
+    console.error('Update patient error:', error.message);
     
-    if (error.message.includes('non-existent')) {
-      return response.status(404).json({
-        error: 'Cannot update non-existent patient record'
+    response.status(500).json({
+      error: 'Failed to update patient record',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleDeletePatient(request, response) {
+  try {
+    const { id } = request.params;
+
+    if (!id) {
+      return response.status(400).json({
+        error: 'Patient ID is required'
       });
     }
 
+    const result = await patientService.deletePatient(id);
+    
+    if (!result) {
+      return response.status(404).json({
+        error: 'Patient record not found',
+        details: `No patient found with ID: ${id}`
+      });
+    }
+
+    response.json({
+      success: true,
+      message: 'Patient record deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete patient error:', error.message);
+    
     response.status(500).json({
-      error: 'Failed to update patient record',
-      details: error.message
+      error: 'Failed to delete patient record',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleSearchPatients(request, response) {
+  try {
+    const { q } = request.query;
+
+    if (!q || q.trim().length < 2) {
+      return response.status(400).json({
+        error: 'Search query required',
+        details: 'Please provide a search term with at least 2 characters'
+      });
+    }
+
+    const patients = await patientService.searchPatients(q.trim());
+
+    response.json({
+      success: true,
+      data: patients,
+      count: patients.length,
+      search_query: q
+    });
+
+  } catch (error) {
+    console.error('Search patients error:', error.message);
+    
+    response.status(500).json({
+      error: 'Search service unavailable',
+      details: 'Please try again later'
     });
   }
 }
 
 module.exports = {
-  handleCreatePatient,
   handleGetPatients,
   handleGetPatientDetails,
-  handleUpdatePatient
+  handleCreatePatient,
+  handleUpdatePatient,
+  handleDeletePatient,
+  handleSearchPatients
 };

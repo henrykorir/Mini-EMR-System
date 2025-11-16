@@ -88,9 +88,27 @@ async function handleUserLogin(request, response) {
   }
 }
 
+async function handleUserLogout(request, response) {
+  try {
+    // In a real implementation, you might blacklist the token or update user session
+    response.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error.message);
+    
+    response.status(500).json({
+      error: 'Logout service unavailable',
+      details: 'Please try again later'
+    });
+  }
+}
+
 async function handlePasswordChange(request, response) {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.user_id;
     const { current_password, new_password } = request.body;
 
     if (!current_password || !new_password) {
@@ -132,6 +150,7 @@ function validateAuthenticationToken(request, response) {
 module.exports = {
   handleUserRegistration,
   handleUserLogin,
+  handleUserLogout,
   handlePasswordChange,
   validateAuthenticationToken
 };
