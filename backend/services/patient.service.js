@@ -1,21 +1,104 @@
 const database = require('../lib/database');
 
-class PatientManagementService {
-  async createNewPatientRecord(patientData, createdByUserId) {
-    const medicalRecordNumber = this.generateMedicalRecordNumber();
+class PatientService {
+  async getAllPatients() {
+    const query = `
+      SELECT 
+        patient_id as id,
+        medical_record_number,
+        id_number,
+        primary_provider_id,
+        first_name,
+        last_name,
+        date_of_birth,
+        gender,
+        contact_phone,
+        email,
+        residential_address,
+        emergency_contact_name,
+        emergency_contact_phone,
+        insurance_provider,
+        insurance_policy_number,
+        significant_medical_history,
+        known_allergies,
+        blood_type,
+        patient_status as status,
+        last_visit_date,
+        created_at,
+        updated_at
+      FROM patient_records 
+      ORDER BY last_name, first_name
+    `;
     
-    const insertPatientSQL = `
+    return await database.executeQuery(query);
+  }
+
+  async getPatientById(patientId) {
+    const query = `
+      SELECT 
+        patient_id as id,
+        medical_record_number,
+        id_number,
+        primary_provider_id,
+        first_name,
+        last_name,
+        date_of_birth,
+        gender,
+        contact_phone,
+        email,
+        residential_address,
+        emergency_contact_name,
+        emergency_contact_phone,
+        insurance_provider,
+        insurance_policy_number,
+        significant_medical_history,
+        known_allergies,
+        blood_type,
+        patient_status as status,
+        last_visit_date,
+        created_at,
+        updated_at
+      FROM patient_records 
+      WHERE patient_id = ?
+    `;
+    
+    const patients = await database.executeQuery(query, [patientId]);
+    return patients.length > 0 ? patients[0] : null;
+  }
+
+  async createPatient(patientData) {
+    const checkMrnQuery = `
+      SELECT patient_id FROM patient_records WHERE medical_record_number = ?
+    `;
+    
+    const existingPatients = await database.executeQuery(checkMrnQuery, [patientData.medical_record_number]);
+    
+    if (existingPatients.length > 0) {
+      throw new Error('Medical record number already exists in the system');
+    }
+
+    if (patientData.id_number) {
+      const checkIdQuery = `SELECT patient_id FROM patient_records WHERE id_number = ?`;
+      const existingIdPatients = await database.executeQuery(checkIdQuery, [patientData.id_number]);
+      
+      if (existingIdPatients.length > 0) {
+        throw new Error('ID number already registered for another patient');
+      }
+    }
+
+    const insertQuery = `
       INSERT INTO patient_records (
-        medical_record_number, primary_provider_id, first_name, last_name,
+        medical_record_number, id_number, primary_provider_id, first_name, last_name,
         date_of_birth, gender, contact_phone, email, residential_address,
         emergency_contact_name, emergency_contact_phone, insurance_provider,
         insurance_policy_number, significant_medical_history, known_allergies,
-        created_by_user
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        blood_type, created_by_user
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const insertionResult = await database.executeQuery(insertPatientSQL, [
-      medicalRecordNumber,
+    const result = await database.executeQuery(insertQuery, [
+      patientData.medical_record_number,
+      patientData.id_number || null,
       patientData.primary_provider_id || null,
       patientData.first_name,
       patientData.last_name,
@@ -30,184 +113,149 @@ class PatientManagementService {
       patientData.insurance_policy_number || null,
       patientData.significant_medical_history || null,
       patientData.known_allergies || null,
-      createdByUserId
+      patientData.blood_type || null,
+      patientData.created_by_user
     ]);
 
-    return {
-      patient_id: insertionResult.insertId,
-      medical_record_number: medicalRecordNumber,
-      message: 'Patient record created successfully'
-    };
+    return this.getPatientById(result.insertId);
   }
 
-  generateMedicalRecordNumber() {
-    const timestamp = Date.now().toString();
-    const randomComponent = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    return `MRN-${timestamp.slice(-6)}-${randomComponent}`;
-  }
-
-  async retrievePatientList(options = {}) {
-    const {
-      page_number = 1,
-      items_per_page = 25,
-      search_query = '',
-      provider_filter = null
-    } = options;
-
-    const offset = (page_number - 1) * items_per_page;
-    
-    let baseQuery = `
-      FROM patient_records pr
-      LEFT JOIN system_users su ON pr.primary_provider_id = su.user_id
-      WHERE 1=1
-    `;
-    
-    const queryParameters = [];
-
-    if (search_query) {
-      baseQuery += ` AND (
-        pr.first_name LIKE ? OR 
-        pr.last_name LIKE ? OR 
-        pr.medical_record_number LIKE ?
-      )`;
-      const searchPattern = `%${search_query}%`;
-      queryParameters.push(searchPattern, searchPattern, searchPattern);
-    }
-
-    if (provider_filter) {
-      baseQuery += ` AND pr.primary_provider_id = ?`;
-      queryParameters.push(provider_filter);
-    }
-
-    const countQuery = `SELECT COUNT(*) as total_records ${baseQuery}`;
-    const countResult = await database.executeQuery(countQuery, queryParameters);
-    const totalRecords = countResult[0].total_records;
-
-    const dataQuery = `
-      SELECT 
-        pr.patient_id, pr.medical_record_number, pr.first_name, pr.last_name,
-        pr.date_of_birth, pr.gender, pr.contact_phone, pr.email,
-        su.full_name as primary_provider_name,
-        pr.created_at
-      ${baseQuery}
-      ORDER BY pr.last_name, pr.first_name
-      LIMIT ? OFFSET ?
-    `;
-
-    const dataParameters = [...queryParameters, items_per_page, offset];
-    const patientRecords = await database.executeQuery(dataQuery, dataParameters);
-
-    return {
-      patients: patientRecords,
-      pagination: {
-        current_page: page_number,
-        items_per_page: items_per_page,
-        total_records: totalRecords,
-        total_pages: Math.ceil(totalRecords / items_per_page)
-      }
-    };
-  }
-
-  async getPatientDetailedRecord(patientId) {
-    const patientQuery = `
-      SELECT 
-        pr.*,
-        su.full_name as primary_provider_name,
-        creator.full_name as created_by_name
-      FROM patient_records pr
-      LEFT JOIN system_users su ON pr.primary_provider_id = su.user_id
-      LEFT JOIN system_users creator ON pr.created_by_user = creator.user_id
-      WHERE pr.patient_id = ?
-    `;
-
-    const patientRecords = await database.executeQuery(patientQuery, [patientId]);
-    
-    if (patientRecords.length === 0) {
-      throw new Error('Patient record not found in the system');
-    }
-
-    return patientRecords[0];
-  }
-
-  async updatePatientInformation(patientId, updateData, updatedByUserId) {
-    const existingPatient = await this.getPatientDetailedRecord(patientId);
-    
+  async updatePatient(patientId, updateData) {
+    const existingPatient = await this.getPatientById(patientId);
     if (!existingPatient) {
-      throw new Error('Cannot update non-existent patient record');
+      return null;
     }
 
-    const allowedFields = [
-      'first_name', 'last_name', 'date_of_birth', 'gender', 'contact_phone',
-      'email', 'residential_address', 'emergency_contact_name', 
-      'emergency_contact_phone', 'insurance_provider', 'insurance_policy_number',
-      'significant_medical_history', 'known_allergies', 'primary_provider_id'
-    ];
+    // Check for duplicate MRN if being updated
+    if (updateData.medical_record_number && updateData.medical_record_number !== existingPatient.medical_record_number) {
+      const checkMrnQuery = `SELECT patient_id FROM patient_records WHERE medical_record_number = ? AND patient_id != ?`;
+      const existingPatients = await database.executeQuery(checkMrnQuery, [updateData.medical_record_number, patientId]);
+      
+      if (existingPatients.length > 0) {
+        throw new Error('Medical record number already exists for another patient');
+      }
+    }
+
+    // Check for duplicate ID number if being updated
+    if (updateData.id_number && updateData.id_number !== existingPatient.id_number) {
+      const checkIdQuery = `SELECT patient_id FROM patient_records WHERE id_number = ? AND patient_id != ?`;
+      const existingIdPatients = await database.executeQuery(checkIdQuery, [updateData.id_number, patientId]);
+      
+      if (existingIdPatients.length > 0) {
+        throw new Error('ID number already registered for another patient');
+      }
+    }
 
     const updateFields = [];
     const updateValues = [];
 
-    allowedFields.forEach(field => {
+    const fieldMappings = {
+      medical_record_number: 'medical_record_number',
+      id_number: 'id_number',
+      primary_provider_id: 'primary_provider_id',
+      first_name: 'first_name',
+      last_name: 'last_name',
+      date_of_birth: 'date_of_birth',
+      gender: 'gender',
+      contact_phone: 'contact_phone',
+      email: 'email',
+      residential_address: 'residential_address',
+      emergency_contact_name: 'emergency_contact_name',
+      emergency_contact_phone: 'emergency_contact_phone',
+      insurance_provider: 'insurance_provider',
+      insurance_policy_number: 'insurance_policy_number',
+      significant_medical_history: 'significant_medical_history',
+      known_allergies: 'known_allergies',
+      blood_type: 'blood_type',
+      patient_status: 'patient_status',
+      last_visit_date: 'last_visit_date'
+    };
+
+    Object.keys(fieldMappings).forEach(field => {
       if (updateData[field] !== undefined) {
-        updateFields.push(`${field} = ?`);
+        updateFields.push(`${fieldMappings[field]} = ?`);
         updateValues.push(updateData[field]);
       }
     });
 
     if (updateFields.length === 0) {
-      throw new Error('No valid fields provided for update');
+      return existingPatient;
     }
 
     updateValues.push(patientId);
-    
-    const updateSQL = `
+
+    const updateQuery = `
       UPDATE patient_records 
       SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
       WHERE patient_id = ?
     `;
 
-    const updateResult = await database.executeQuery(updateSQL, updateValues);
-    
-    if (updateResult.affectedRows === 0) {
-      throw new Error('Patient record update failed');
-    }
-
-    return {
-      success: true,
-      message: 'Patient information updated successfully'
-    };
+    await database.executeQuery(updateQuery, updateValues);
+    return this.getPatientById(patientId);
   }
 
-  async getPatientClinicalSummary(patientId) {
-    const encounterQuery = `
+  async deletePatient(patientId) {
+    const existingPatient = await this.getPatientById(patientId);
+    if (!existingPatient) {
+      return null;
+    }
+
+    // Check if patient has existing visits
+    const checkVisitsQuery = `SELECT COUNT(*) as visit_count FROM clinical_encounters WHERE patient_record_id = ?`;
+    const visitResult = await database.executeQuery(checkVisitsQuery, [patientId]);
+    
+    if (visitResult[0].visit_count > 0) {
+      throw new Error('Cannot delete patient with existing clinical visits. Archive instead.');
+    }
+
+    const deleteQuery = `DELETE FROM patient_records WHERE patient_id = ?`;
+    const result = await database.executeQuery(deleteQuery, [patientId]);
+    
+    return result.affectedRows > 0;
+  }
+
+  async searchPatients(searchTerm) {
+    const query = `
       SELECT 
-        encounter_id, visit_type, encounter_date, chief_complaint,
-        clinical_assessment, encounter_status
-      FROM clinical_encounters
-      WHERE patient_record_id = ?
-      ORDER BY encounter_date DESC
-      LIMIT 10
+        patient_id as id,
+        medical_record_number,
+        id_number,
+        first_name,
+        last_name,
+        date_of_birth,
+        gender,
+        contact_phone,
+        email,
+        patient_status as status,
+        last_visit_date
+      FROM patient_records 
+      WHERE 
+        first_name LIKE ? OR 
+        last_name LIKE ? OR 
+        medical_record_number LIKE ? OR 
+        id_number LIKE ? OR
+        email LIKE ? OR
+        contact_phone LIKE ?
+      ORDER BY last_name, first_name
+      LIMIT 50
     `;
 
-    const recentEncounters = await database.executeQuery(encounterQuery, [patientId]);
+    const searchPattern = `%${searchTerm}%`;
+    return await database.executeQuery(query, [
+      searchPattern, searchPattern, searchPattern, 
+      searchPattern, searchPattern, searchPattern
+    ]);
+  }
 
-    const prescriptionQuery = `
-      SELECT 
-        mp.medication_name, mp.dosage_instructions, mp.start_date,
-        mp.prescription_status, su.full_name as prescriber_name
-      FROM medication_prescriptions mp
-      JOIN clinical_encounters ce ON mp.clinical_encounter_id = ce.encounter_id
-      JOIN system_users su ON mp.prescribed_by_clinician = su.user_id
-      WHERE ce.patient_record_id = ? AND mp.prescription_status = 'active'
-      ORDER BY mp.start_date DESC
+  async updateLastVisitDate(patientId, visitDate) {
+    const updateQuery = `
+      UPDATE patient_records 
+      SET last_visit_date = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE patient_id = ?
     `;
-
-    const activePrescriptions = await database.executeQuery(prescriptionQuery, [patientId]);
-
-    return {
-      recent_encounters: recentEncounters,
-      active_medications: activePrescriptions
-    };
+    
+    await database.executeQuery(updateQuery, [visitDate, patientId]);
   }
 }
 
-module.exports = new PatientManagementService();
+module.exports = new PatientService();
