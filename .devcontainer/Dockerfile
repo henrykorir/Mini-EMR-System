@@ -1,10 +1,5 @@
-# .devcontainer/Dockerfile
-FROM mcr.microsoft.com/vscode/devcontainers/javascript-node:0-14
+# Use the official devcontainer Node.js image
+FROM mcr.microsoft.com/vscode/devcontainers/javascript-node:latest
 
-# Set up working directory
-WORKDIR /workspace
-
-# Expose ports for React and Express
-EXPOSE 3000
-EXPOSE 5000
-touc
+# Install global dependencies if needed
+RUN npm install -g npm

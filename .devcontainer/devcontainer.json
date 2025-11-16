@@ -1,15 +1,19 @@
-// .devcontainer/devcontainer.json
 {
-  "name": "React and Express App",
-  "dockerFile": "Dockerfile",  // Optional, if using a custom Dockerfile
-  "appPort": [3000, 5000],
-  "postCreateCommand": "npm install",
-  "runArgs": ["--init", "--privileged"],
-  "extensions": [
-    "dbaeumer.vscode-eslint",
-    "ms-vscode.vscode-node-azure-pack"
-  ],
+  "name": "Mini EMR System (React + Express)",
+  "image": "mcr.microsoft.com/vscode/devcontainers/javascript-node",  // Node.js image with common tools
+  "forwardPorts": [3000, 5000],  // Forward React (3000) and Express (5000) ports
+  "postCreateCommand": "cd frontend && npm install && cd ../backend && npm install",  // Install dependencies in both frontend and backend
   "settings": {
     "terminal.integrated.shell.linux": "/bin/bash"
-  }
+  },
+  "extensions": [
+    "dbaeumer.vscode-eslint",  // ESlint for linting
+    "esbenp.prettier-vscode",  // Prettier for formatting
+    "msjsdiag.debugger-for-chrome"  // Optional: Chrome debugging for React
+  ],
+  "workspaceFolder": "/workspaces/Mini-EMR-System",  // The root workspace folder
+  "mounts": [
+    "source=${localWorkspaceFolder}/frontend,target=/workspaces/Mini-EMR-System/frontend,type=bind",
+    "source=${localWorkspaceFolder}/backend,target=/workspaces/Mini-EMR-System/backend,type=bind"
+  ]
 }
