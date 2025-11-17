@@ -1,9 +1,11 @@
-// src/components/visits/VisitHistory.js
-import React from 'react';
 import { Calendar, User, FileText, Plus, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import dayjs from 'dayjs'
 
 const VisitHistory = ({ visits, onNewVisit, loading }) => {
+  const clinicalVisits = Array.isArray(visits) ? visits : visits.data;
+  console.log("clinicalVisits: ", clinicalVisits)
+  console.log("visits: ", visits)
   if (loading) {
     return (
       <div className="table-container">
@@ -36,7 +38,7 @@ const VisitHistory = ({ visits, onNewVisit, loading }) => {
 
   return (
     <div className="visits-container">
-      {visits.map(visit => (
+      {clinicalVisits.map(visit => (
         <div key={visit.id} className="visit-card detailed">
           <div className="visit-header">
             <div className="visit-patient">
@@ -47,7 +49,7 @@ const VisitHistory = ({ visits, onNewVisit, loading }) => {
                 <h4>{visit.patientName}</h4>
                 <div className="visit-meta">
                   <Calendar size={14} />
-                  <span>{visit.visitDate}</span>
+                  <span>{dayjs(visit.visitDate).format('DD/MM/YY')}</span>
                   <span className="visit-id">#{visit.id}</span>
                 </div>
               </div>
@@ -61,11 +63,15 @@ const VisitHistory = ({ visits, onNewVisit, loading }) => {
             <div className="visit-section">
               <h5>Diagnosis</h5>
               <div className="diagnosis-tags">
-                {visit.diagnosis.map(dx => (
-                  <span key={dx} className="diagnosis-tag">
-                    {dx}
-                  </span>
-                ))}
+                {visit.diagnosis && visit.diagnosis.length > 0 ? (
+                  visit.diagnosis.map(dx => (
+                    <span key={dx.diagnosis_id} className="diagnosis-tag">
+                      {dx.diagnosis_name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="diagnosis-tag">NA</span>
+                )}
               </div>
             </div>
 
@@ -73,11 +79,17 @@ const VisitHistory = ({ visits, onNewVisit, loading }) => {
               <div className="visit-section">
                 <h5>Medications</h5>
                 <div className="medications-list">
-                  {visit.prescribedMedications.map((med, index) => (
-                    <div key={index} className="medication-item">
-                      <strong>{med.name}</strong> {med.dosage} - {med.frequency} - {med.duration}
+                  {visit.prescribedMedications && Array.isArray(visit.prescribedMedications) && visit.prescribedMedications.length > 0 ? (
+                    visit.prescribedMedications.map((med, index) => (
+                      <div key={index} className="medication-item">
+                        <strong>{med.name}</strong> {med.dosage} - {med.frequency} - {med.duration}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="medication-item">
+                      NA
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -114,12 +126,22 @@ const VisitHistory = ({ visits, onNewVisit, loading }) => {
               </div>
             )}
 
-            {visit.notes && (
+            {/* {visit.diagnosis[0].notes && (
               <div className="visit-section">
                 <h5>Clinical Notes</h5>
                 <p className="visit-notes">{visit.notes}</p>
               </div>
-            )}
+            )} */}
+            <div className="visit-section">
+                <h5>Clinical Notes</h5>
+                {visit.diagnosis && visit.diagnosis.length > 0 ? (
+                  visit.diagnosis.map(dx => (
+                <p className="visit-notes">{dx.notes}</p>
+                ))
+              ):(
+                  <p className="visit-notes">NONE</p>
+                )}
+            </div>
           </div>
 
           <div className="visit-actions">

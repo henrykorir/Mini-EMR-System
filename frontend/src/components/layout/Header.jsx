@@ -18,14 +18,14 @@ const Header = ({ onMenuClick }) => {
           <Menu size={24} />
         </button>
         
-        <div className="search-container">
+        {/* <div className="search-container">
           <Search size={20} className="search-icon" />
           <input
             type="text"
             placeholder="Search patients, visits, medications..."
             className="search-input"
           />
-        </div>
+        </div> */}
       </div>
 
       <div className="header-right">

@@ -46,7 +46,7 @@ const VisitManagement = () => {
         patientsAPI.getAll()
       ]);
       setVisits(visitsData);
-      setPatients(patientsData);
+      setPatients(patientsData.data);
     } catch (error) {
       showToast('Error fetching data', 'error');
     } finally {
@@ -56,12 +56,12 @@ const VisitManagement = () => {
 
   const filterVisits = () => {
     let filtered = visits;
-
+console.log("filtered: ", filtered)
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(visit =>
+      filtered = filtered.data.filter(visit =>
         visit.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        visit.diagnosis.some(dx => dx.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        visit.diagnosis?.some(dx => dx.toLowerCase().includes(searchTerm.toLowerCase())) ||
         visit.notes?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -74,7 +74,7 @@ const VisitManagement = () => {
     // Date range filter (simplified)
     if (filters.dateRange !== 'all') {
       const today = new Date();
-      filtered = filtered.filter(visit => {
+      filtered = filtered.data.filter(visit => {
         const visitDate = new Date(visit.visitDate);
         switch (filters.dateRange) {
           case 'today':
@@ -119,10 +119,10 @@ const VisitManagement = () => {
           <p>Manage patient visits and medical records</p>
         </div>
         <div className="page-actions">
-          <button className="btn btn-outline">
+          {/* <button className="btn btn-outline">
             <Download size={20} />
             Export
-          </button>
+          </button> */}
           <button 
             className="btn btn-primary"
             onClick={() => handleNewVisit()}
@@ -148,7 +148,7 @@ const VisitManagement = () => {
             className="filter-select"
           >
             <option value="all">All Patients</option>
-            {patients.map(patient => (
+            {patients.data?.map(patient => (
               <option key={patient.id} value={patient.id}>
                 {patient.name}
               </option>

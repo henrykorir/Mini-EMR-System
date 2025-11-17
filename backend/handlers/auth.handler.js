@@ -1,9 +1,9 @@
 const authService = require('../services/auth.service');
 
 async function handleUserRegistration(request, response) {
+  console.log("req: ", request.body);
   try {
-    const { email_address, password, full_name, license_number, role } = request.body;
-
+    const { email: email_address, password, name: full_name, licenseNumber: license_number, role } = request.body;
     if (!email_address || !password || !full_name) {
       return response.status(400).json({
         error: 'Missing required fields: email, password, and full name are mandatory'
@@ -18,9 +18,9 @@ async function handleUserRegistration(request, response) {
       role
     });
 
-    const authToken = authService.generateAuthToken(newUser);
+    const authToken =  authService.generateAuthToken(newUser);
 
-    response.status(201).json({
+    const registrationResponse = {
       success: true,
       message: 'Clinician account created successfully',
       user: {
@@ -32,7 +32,9 @@ async function handleUserRegistration(request, response) {
       access_token: authToken,
       token_type: 'Bearer',
       expires_in: '12 hours'
-    });
+    }
+    
+    response.status(201).json(registrationResponse);
 
   } catch (error) {
     console.error('Registration error:', error.message);
@@ -53,7 +55,7 @@ async function handleUserRegistration(request, response) {
 
 async function handleUserLogin(request, response) {
   try {
-    const { email_address, password } = request.body;
+    const { email:email_address, password } = request.body;
 
     if (!email_address || !password) {
       return response.status(400).json({
@@ -88,9 +90,27 @@ async function handleUserLogin(request, response) {
   }
 }
 
+async function handleUserLogout(request, response) {
+  try {
+    // In a real implementation, you might blacklist the token or update user session
+    response.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error.message);
+    
+    response.status(500).json({
+      error: 'Logout service unavailable',
+      details: 'Please try again later'
+    });
+  }
+}
+
 async function handlePasswordChange(request, response) {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.user_id;
     const { current_password, new_password } = request.body;
 
     if (!current_password || !new_password) {
@@ -132,6 +152,7 @@ function validateAuthenticationToken(request, response) {
 module.exports = {
   handleUserRegistration,
   handleUserLogin,
+  handleUserLogout,
   handlePasswordChange,
   validateAuthenticationToken
 };

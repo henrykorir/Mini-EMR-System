@@ -112,10 +112,10 @@ const PatientManagement = () => {
           <p>Manage patient records and profiles</p>
         </div>
         <div className="page-actions">
-          <button className="btn btn-outline" onClick={handleExport}>
+          {/* <button className="btn btn-outline" onClick={handleExport}>
             <Download size={20} />
             Export
-          </button>
+          </button> */}
           <button 
             className="btn btn-primary"
             onClick={() => setShowForm(true)}

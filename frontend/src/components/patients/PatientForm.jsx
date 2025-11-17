@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, User } from 'lucide-react';
 import Modal from '../common/Modal';
+import { useAuth }  from '../../hooks/useAuth'
 
 const PatientForm = ({ patient, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
@@ -14,10 +15,12 @@ const PatientForm = ({ patient, onSubmit, onClose }) => {
     emergencyContact: '',
     bloodType: '',
     allergies: '',
-    medicalHistory: ''
+    medicalHistory: '',
+    user_id: '',
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (patient) {
@@ -31,10 +34,11 @@ const PatientForm = ({ patient, onSubmit, onClose }) => {
         emergencyContact: patient.emergencyContact || '',
         bloodType: patient.bloodType || '',
         allergies: patient.allergies || '',
-        medicalHistory: patient.medicalHistory || ''
+        medicalHistory: patient.medicalHistory || '',
+        user_id: user.userId
       });
     }
-  }, [patient]);
+  }, [patient, user]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -63,17 +67,50 @@ const PatientForm = ({ patient, onSubmit, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+  //   if (!validateForm()) {
+  //     return;
+  //   }
 
-    setLoading(true);
-    await onSubmit(formData);
-    setLoading(false);
+  //   setLoading(true);
+  //   console.log("patientFormData: ", formData);
+  //   console.log("user-auth: ", user);
+  //   await onSubmit(formData);
+  //   setLoading(false);
+  // };
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!user) {
+    console.log('No user is logged in');
+    return;
+  }
+
+  // Add user_id to formData just before submitting
+  const formDataWithUser = {
+    ...formData,
+    user_id: user.userId || 1,  // Add user_id only when submitting
   };
+
+  if (!validateForm()) {
+    return;
+  }
+
+  setLoading(true);
+  console.log("patientFormData: ", formDataWithUser);
+  console.log("user-auth: ", user);
+
+  try {
+    await onSubmit(formDataWithUser);
+  } catch (error) {
+    console.error("Error submitting form: ", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleChange = (e) => {
     const { name, value } = e.target;

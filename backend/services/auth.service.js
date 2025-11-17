@@ -1,11 +1,10 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const database = require('../lib/database');
-const { AUTH_CONFIG } = require('../utils/constants');
 
 class AuthenticationService {
   constructor() {
-    this.tokenSecret = process.env.JWT_SECRET_KEY || 'clinical_system_secret_2024';
+    this.tokenSecret = process.env.JWT_SECRET_KEY || 'clinical_system_jwt_secret_key_2024_secure_medical_records';
     this.tokenExpiry = '12h';
   }
 

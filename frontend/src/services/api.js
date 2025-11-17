@@ -1,147 +1,268 @@
-// src/services/api.js
-// Mock API service - replace with actual backend calls
+const API_BASE_URL = 'https://stunning-space-sniffle-7wj9j4rg4x3w69w-8080.app.github.dev/api';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// SWR Fetcher function
+const fetcher = async (url, options = {}) => {
+  const token = localStorage.getItem('emr_token');
+  
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers,
+    },
+    ...options,
+  };
 
-// Simulate API delay
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const response = await fetch(`${API_BASE_URL}${url}`, config);
+  
+  if (!response.ok) {
+    const error = new Error('An error occurred while fetching the data.');
+    error.status = response.status;
+    error.info = await response.json().catch(() => ({}));
+    throw error;
+  }
 
-// Mock data
-import { mockData } from './mockData';
+  return response.json();
+};
+
+// SWR mutation function for POST/PUT/DELETE requests
+const mutator = async (url, data, method = 'POST') => {
+  const token = localStorage.getItem('emr_token');
+  
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = new Error('An error occurred while making the request.');
+    error.status = response.status;
+    error.info = await response.json().catch(() => ({}));
+    throw error;
+  }
+
+  return response.json();
+};
 
 export const authAPI = {
   async login(email, password) {
-    await delay(1000);
-    console.log("logiiiiin")
-    // Mock validation
-    if (email === 'doctor@emr.com' && password === 'password') {
-      return {
-        user: {
-          id: '1',
-          name: 'Dr. Sarah Johnson',
-          email: 'doctor@emr.com',
-          role: 'clinician'
-        },
-        token: 'mock-jwt-token'
-      };
-    }
-    
-    throw new Error('Invalid email or password');
+    return mutator('/auth/login', { email, password });
   },
 
   async register(userData) {
-    await delay(1000);
-    return {
-      user: {
-        id: '2',
-        name: userData.name,
-        email: userData.email,
-        role: 'clinician'
-      },
-      token: 'mock-jwt-token'
-    };
+    return mutator('/auth/register', userData, 'POST');
   },
 
   async validateToken(token) {
-    await delay(500);
-    return {
-      id: '1',
-      name: 'Dr. Sarah Johnson',
-      email: 'doctor@emr.com',
-      role: 'clinician'
-    };
+    // For token validation, we'll use the fetcher which automatically includes the token
+    return fetcher('/auth/validate');
   }
 };
 
 export const patientsAPI = {
   async getAll() {
-    await delay(800);
-    return mockData.patients;
+    return fetcher('/patients');
   },
 
   async getById(id) {
-    await delay(500);
-    const patient = mockData.patients.find(p => p.id === id);
-    if (!patient) throw new Error('Patient not found');
-    return patient;
+    return fetcher(`/patients/${id}`);
   },
 
   async create(patientData) {
-    await delay(1000);
-    const newPatient = {
-      id: `P${Date.now()}`,
-      ...patientData,
-      createdAt: new Date().toISOString().split('T')[0],
-      status: 'Active'
-    };
-    return newPatient;
+    return mutator('/patients', patientData);
   },
 
   async update(id, patientData) {
-    await delay(800);
-    return { id, ...patientData };
+    return mutator(`/patients/${id}`, patientData, 'PUT');
   },
 
   async delete(id) {
-    await delay(500);
-    return { success: true };
+    return mutator(`/patients/${id}`, {}, 'DELETE');
   },
 
-  async getById(id) {
-    await delay(500);
-    const patient = mockData.patients.find(p => p.id === id);
-    if (!patient) throw new Error('Patient not found');
-    return patient;
-  },
+  async search(query) {
+    return fetcher(`/patients/search?q=${encodeURIComponent(query)}`);
+  }
 };
 
 export const visitsAPI = {
   async getAll() {
-    await delay(800);
-    return mockData.visits;
+    return fetcher('/visits');
   },
 
   async getByPatientId(patientId) {
-    await delay(500);
-    return mockData.visits.filter(v => v.patientId === patientId);
+    return fetcher(`/visits/patient/${patientId}`);
   },
 
   async create(visitData) {
-    await delay(1000);
-    const newVisit = {
-      id: `V${Date.now()}`,
-      ...visitData,
-      createdAt: new Date().toISOString()
-    };
-    return newVisit;
+    return mutator('/visits', visitData);
   },
 
   async update(id, visitData) {
-    await delay(800);
-    return { id, ...visitData };
+    return mutator(`/visits/${id}`, visitData, 'PUT');
   },
 
   async delete(id) {
-    await delay(500);
-    return { success: true };
+    return mutator(`/visits/${id}`, {}, 'DELETE');
   },
 
-  async getByPatientId(patientId) {
-    await delay(500);
-    return mockData.visits.filter(v => v.patientId === patientId);
-  },
-  
   async getById(id) {
-    await delay(500);
-    const visit = mockData.visits.find(v => v.id === id);
-    if (!visit) throw new Error('Visit not found');
-    return visit;
+    return fetcher(`/visits/${id}`);
   },
+
+  async getRecent(limit = 10) {
+    return fetcher(`/visits/recent?limit=${limit}`);
+  }
 };
 
 export const dashboardAPI = {
   async getDashboardData() {
-    await delay(600);
-    return mockData.dashboard;
+    return fetcher('/dashboard');
+  },
+
+  async getDashboardStats() {
+    return fetcher('/dashboard/stats');
   }
 };
+
+// SWR Hooks for React components (additional utilities)
+export const patientsHooks = {
+  usePatients() {
+    const { data, error, isLoading, mutate } = useSWR(
+      '/patients',
+      fetcher,
+      {
+        revalidateOnFocus: true,
+        dedupingInterval: 60000,
+      }
+    );
+
+    return {
+      patients: data || [],
+      isLoading,
+      isError: error,
+      refetch: mutate,
+    };
+  },
+
+  usePatient(id) {
+    const { data, error, isLoading, mutate } = useSWR(
+      id ? `/patients/${id}` : null,
+      fetcher
+    );
+
+    return {
+      patient: data,
+      isLoading,
+      isError: error,
+      refetch: mutate,
+    };
+  }
+};
+
+export const visitsHooks = {
+  useVisits() {
+    const { data, error, isLoading, mutate } = useSWR(
+      '/visits',
+      fetcher,
+      {
+        revalidateOnFocus: true,
+        dedupingInterval: 30000,
+      }
+    );
+
+    return {
+      visits: data || [],
+      isLoading,
+      isError: error,
+      refetch: mutate,
+    };
+  },
+
+  useVisitsByPatient(patientId) {
+    const { data, error, isLoading, mutate } = useSWR(
+      patientId ? `/visits/patient/${patientId}` : null,
+      fetcher
+    );
+
+    return {
+      visits: data || [],
+      isLoading,
+      isError: error,
+      refetch: mutate,
+    };
+  }
+};
+
+export const dashboardHooks = {
+  useDashboard() {
+    const { data, error, isLoading, mutate } = useSWR(
+      '/dashboard',
+      fetcher,
+      {
+        revalidateOnFocus: true,
+        refreshInterval: 60000,
+      }
+    );
+
+    return {
+      dashboard: data,
+      isLoading,
+      isError: error,
+      refetch: mutate,
+    };
+  }
+};
+
+// Utility hooks for common operations
+export const apiHooks = {
+  // Combined patient with their visits
+  usePatientWithVisits(patientId) {
+    const { patient, isLoading: patientLoading, error: patientError } = patientsHooks.usePatient(patientId);
+    const { visits, isLoading: visitsLoading, error: visitsError } = visitsHooks.useVisitsByPatient(patientId);
+
+    return {
+      patient,
+      visits: visits || [],
+      isLoading: patientLoading || visitsLoading,
+      isError: patientError || visitsError,
+    };
+  },
+
+  // Search with debouncing
+  useDebouncedSearch(query, delay = 300) {
+    const [debouncedQuery, setDebouncedQuery] = useState(query);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedQuery(query);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [query, delay]);
+
+    const { patients, isLoading, isError } = patientsHooks.usePatients();
+
+    // Filter patients based on debounced query
+    const filteredPatients = patients.filter(patient => 
+      patient.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      patient.idNumber.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      patient.email.toLowerCase().includes(debouncedQuery.toLowerCase())
+    );
+
+    return {
+      patients: debouncedQuery ? filteredPatients : patients,
+      isLoading,
+      isError,
+    };
+  }
+};
+
+// Export the base fetcher and mutator for direct use
+export { fetcher, mutator };

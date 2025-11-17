@@ -1,9 +1,9 @@
-// src/components/patients/PatientList.js
 import { Link } from 'react-router-dom';
 import { Eye, Edit, Trash2, User,Calendar } from 'lucide-react';
-
+import dayjs from 'dayjs';
 
 const PatientList = ({ patients, onEdit, onDelete, loading }) => {
+  console.log("patients: ", patients)
   if (loading) {
     return (
       <div className="table-container">
@@ -56,12 +56,12 @@ const PatientList = ({ patients, onEdit, onDelete, loading }) => {
           </tr>
         </thead>
         <tbody>
-          {patients.map(patient => (
+          {patients.data.map(patient => (
             <tr key={patient.id}>
               <td>
                 <div className="patient-info">
                   <div className="patient-avatar small">
-                    {patient.name.charAt(0)}
+                    {patient.first_name.charAt(0)}
                   </div>
                   <div>
                     <div className="patient-name">{patient.name}</div>
@@ -69,8 +69,8 @@ const PatientList = ({ patients, onEdit, onDelete, loading }) => {
                   </div>
                 </div>
               </td>
-              <td>{patient.idNumber}</td>
-              <td>{calculateAge(patient.dateOfBirth)}</td>
+              <td>{patient.id_number}</td>
+              <td>{calculateAge(patient.date_of_birth)}</td>
               <td>
                 <span className={`gender-badge gender-${patient.gender.toLowerCase()}`}>
                   {patient.gender}
@@ -78,14 +78,14 @@ const PatientList = ({ patients, onEdit, onDelete, loading }) => {
               </td>
               <td>
                 <div className="contact-info">
-                  {patient.contact}
+                  {patient.contact_phone}
                 </div>
               </td>
               <td>
-                {patient.lastVisit ? (
+                {patient.last_visit_date ? (
                   <div className="last-visit">
                     <Calendar size={14} />
-                    {patient.lastVisit}
+                    {dayjs(patient.last_visit_date).format('DD/MM/YY')}
                   </div>
                 ) : (
                   <span className="text-muted">No visits</span>

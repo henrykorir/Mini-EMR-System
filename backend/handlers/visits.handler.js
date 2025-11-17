@@ -1,138 +1,283 @@
-const clinicalService = require('../services/clinical.service');
+const visitService = require('../services/visit.service');
 
-async function handleCreateEncounter(request, response) {
+async function handleGetVisits(request, response) {
   try {
-    const clinicianId = request.user.userId;
-    const encounterData = request.body;
+    const visits = await visitService.getAllVisits();
+    
+    response.json({
+      success: true,
+      data: visits,
+      count: visits.length
+    });
 
-    // Validate required fields
-    const requiredFields = ['patient_record_id', 'chief_complaint', 'clinical_assessment'];
-    const missingFields = requiredFields.filter(field => !encounterData[field]);
+  } catch (error) {
+    console.error('Get visits error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve clinical visits',
+      details: 'Please try again later'
+    });
+  }
+}
 
-    if (missingFields.length > 0) {
+async function handleGetPatientVisits(request, response) {
+  try {
+    const { patientId } = request.params;
+    
+    if (!patientId) {
       return response.status(400).json({
-        error: 'Missing required clinical documentation',
-        missing_fields: missingFields
+        error: 'Patient ID is required'
       });
     }
 
-    const creationResult = await clinicalService.recordClinicalEncounter(
-      encounterData, 
-      clinicianId
-    );
+    const visits = await visitService.getVisitsByPatientId(patientId);
+
+    response.json({
+      success: true,
+      data: visits,
+      count: visits.length,
+      patient_id: patientId
+    });
+
+  } catch (error) {
+    console.error('Get patient visits error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve patient visits',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleGetVisitDetails(request, response) {
+  try {
+    const { id } = request.params;
+    
+    if (!id) {
+      return response.status(400).json({
+        error: 'Visit ID is required'
+      });
+    }
+
+    const visit = await visitService.getVisitById(id);
+    
+    if (!visit) {
+      return response.status(404).json({
+        error: 'Clinical visit not found',
+        details: `No visit found with ID: ${id}`
+      });
+    }
+
+    response.json({
+      success: true,
+      data: visit
+    });
+
+  } catch (error) {
+    console.error('Get visit details error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve visit details',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleCreateVisit(request, response) {
+  console.log("visitcreatedata: ", request.body)
+  try {
+    const {
+      patientId,
+      visitDate,
+      diagnosis,
+      prescribedMedications,
+      notes,
+      vitalSigns
+    } = request.body;
+
+    const patient_record_id = patientId;
+    const treating_clinician_id = 1; // In real app, get from auth token
+
+    // Required field validation
+    if (!patient_record_id || !treating_clinician_id) {
+      return response.status(400).json({
+        error: 'Missing required fields',
+        details: 'Patient ID and treating clinician ID are mandatory'
+      });
+    }
+
+    const newVisit = await visitService.createVisit({
+      patient_record_id: patientId,
+      treating_clinician_id: treating_clinician_id,
+      encounter_date: visitDate,
+      clinical_assessment: notes,
+      vital_signs: vitalSigns,
+      diagnosis: diagnosis, // Array of diagnosis names
+      prescribedMedications: prescribedMedications // Array of medication objects
+    });
 
     response.status(201).json({
       success: true,
-      message: 'Clinical encounter documented successfully',
-      encounter: creationResult
+      message: 'Clinical visit recorded successfully',
+      data: newVisit
     });
 
   } catch (error) {
-    console.error('Encounter creation error:', error.message);
+    console.error('Create visit error:', error.message);
     
-    response.status(500).json({
-      error: 'Failed to document clinical encounter',
-      details: 'System encountered an unexpected error'
-    });
-  }
-}
-
-async function handleGetPatientEncounters(request, response) {
-  try {
-    const patientId = parseInt(request.params.patientId);
-    const {
-      page = 1,
-      limit = 20,
-      start_date = null,
-      end_date = null
-    } = request.query;
-
-    if (isNaN(patientId)) {
-      return response.status(400).json({
-        error: 'Invalid patient identifier provided'
-      });
-    }
-
-    const encountersResult = await clinicalService.getPatientEncounterHistory(patientId, {
-      page_number: parseInt(page),
-      items_per_page: parseInt(limit),
-      date_from: start_date,
-      date_to: end_date
-    });
-
-    response.json({
-      success: true,
-      data: encountersResult.encounters,
-      pagination: encountersResult.pagination
-    });
-
-  } catch (error) {
-    console.error('Encounters retrieval error:', error.message);
-    
-    response.status(500).json({
-      error: 'Failed to retrieve clinical encounters',
-      details: 'Database query failed'
-    });
-  }
-}
-
-async function handleGetEncounterDetails(request, response) {
-  try {
-    const encounterId = parseInt(request.params.encounterId);
-    
-    if (isNaN(encounterId)) {
-      return response.status(400).json({
-        error: 'Invalid encounter identifier provided'
-      });
-    }
-
-    const encounterDetails = await clinicalService.getEncounterDetailedView(encounterId);
-
-    response.json({
-      success: true,
-      encounter: encounterDetails.encounter_details,
-      medications: encounterDetails.prescribed_medications
-    });
-
-  } catch (error) {
-    console.error('Encounter details error:', error.message);
-    
-    if (error.message.includes('not found')) {
+    if (error.message.includes('Patient not found')) {
       return response.status(404).json({
-        error: 'Clinical encounter not found'
+        error: 'Visit creation failed',
+        details: error.message
       });
     }
 
     response.status(500).json({
-      error: 'Failed to retrieve encounter details'
+      error: 'Visit recording service unavailable',
+      details: 'Please try again later'
     });
   }
 }
 
-async function handleGetDashboardMetrics(request, response) {
+async function handleUpdateVisit(request, response) {
   try {
-    const clinicianId = request.user.role === 'administrator' ? null : request.user.userId;
+    const { id } = request.params;
+    const updateData = request.body;
+
+    if (!id) {
+      return response.status(400).json({
+        error: 'Visit ID is required'
+      });
+    }
+
+    const updatedVisit = await visitService.updateVisit(id, updateData);
     
-    const dashboardData = await clinicalService.getSystemDashboardMetrics(clinicianId);
+    if (!updatedVisit) {
+      return response.status(404).json({
+        error: 'Clinical visit not found',
+        details: `No visit found with ID: ${id}`
+      });
+    }
 
     response.json({
       success: true,
-      metrics: dashboardData
+      message: 'Clinical visit updated successfully',
+      data: updatedVisit
     });
 
   } catch (error) {
-    console.error('Dashboard metrics error:', error.message);
+    console.error('Update visit error:', error.message);
     
     response.status(500).json({
-      error: 'Failed to retrieve system metrics',
-      details: 'Analytics service unavailable'
+      error: 'Failed to update clinical visit',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleDeleteVisit(request, response) {
+  try {
+    const { id } = request.params;
+
+    if (!id) {
+      return response.status(400).json({
+        error: 'Visit ID is required'
+      });
+    }
+
+    const result = await visitService.deleteVisit(id);
+    
+    if (!result) {
+      return response.status(404).json({
+        error: 'Clinical visit not found',
+        details: `No visit found with ID: ${id}`
+      });
+    }
+
+    response.json({
+      success: true,
+      message: 'Clinical visit deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete visit error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to delete clinical visit',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleGetRecentVisits(request, response) {
+  try {
+    const { limit = 10 } = request.query;
+    
+    const visits = await visitService.getRecentVisits(parseInt(limit));
+
+    response.json({
+      success: true,
+      data: visits,
+      count: visits.length,
+      limit: parseInt(limit)
+    });
+
+  } catch (error) {
+    console.error('Get recent visits error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve recent visits',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleGetDashboardData(request, response) {
+  try {
+    const dashboardData = await visitService.getDashboardData();
+
+    response.json({
+      success: true,
+      data: dashboardData
+    });
+
+  } catch (error) {
+    console.error('Get dashboard data error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve dashboard data',
+      details: 'Please try again later'
+    });
+  }
+}
+
+async function handleGetDashboardStats(request, response) {
+  try {
+    const stats = await visitService.getDashboardStats();
+
+    response.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error('Get dashboard stats error:', error.message);
+    
+    response.status(500).json({
+      error: 'Failed to retrieve dashboard statistics',
+      details: 'Please try again later'
     });
   }
 }
 
 module.exports = {
-  handleCreateEncounter,
-  handleGetPatientEncounters,
-  handleGetEncounterDetails,
-  handleGetDashboardMetrics
+  handleGetVisits,
+  handleGetPatientVisits,
+  handleGetVisitDetails,
+  handleCreateVisit,
+  handleUpdateVisit,
+  handleDeleteVisit,
+  handleGetRecentVisits,
+  handleGetDashboardData,
+  handleGetDashboardStats
 };
