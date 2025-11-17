@@ -1,8 +1,8 @@
-const API_BASE_URL = 'https://ubiquitous-rotary-phone-q65q5g9j7r3w5x-8080.app.github.dev/api';
+const API_BASE_URL = 'https://stunning-space-sniffle-7wj9j4rg4x3w69w-8080.app.github.dev/api';
 
 // SWR Fetcher function
 const fetcher = async (url, options = {}) => {
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('emr_token');
   
   const config = {
     headers: {
@@ -27,7 +27,7 @@ const fetcher = async (url, options = {}) => {
 
 // SWR mutation function for POST/PUT/DELETE requests
 const mutator = async (url, data, method = 'POST') => {
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('emr_token');
   
   const response = await fetch(`${API_BASE_URL}${url}`, {
     method,
@@ -54,7 +54,7 @@ export const authAPI = {
   },
 
   async register(userData) {
-    return mutator('/auth/register', userData);
+    return mutator('/auth/register', userData, 'POST');
   },
 
   async validateToken(token) {

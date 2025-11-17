@@ -42,7 +42,7 @@ const Dashboard = () => {
     <div className="dashboard">
       <div className="dashboard-header">
         <div className="dashboard-title">
-          <h1>EMR Dashboard</h1>
+          <h1>Dashboard</h1>
           <p>Welcome back! Here's your clinical overview.</p>
         </div>
         <div className="dashboard-actions">

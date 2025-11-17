@@ -12,11 +12,55 @@ class VisitService {
         ce.visit_type,
         ce.encounter_date as visitDate,
         ce.chief_complaint,
+        ce.subjective_assessment,
+        ce.objective_findings,
         ce.clinical_assessment,
+        ce.treatment_plan,
         ce.vital_signs,
+        ce.followup_instructions,
+        ce.next_visit_date,
         ce.encounter_status as status,
         ce.visit_duration as duration,
-        ce.created_at
+        ce.created_at,
+        -- Get diagnoses as JSON array
+        (
+          SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'diagnosis_id', pd.diagnosis_id,
+              'diagnosis_name', pd.diagnosis_name,
+              'diagnosis_code', pd.diagnosis_code,
+              'diagnosis_type', pd.diagnosis_type,
+              'diagnosis_date', pd.diagnosis_date,
+              'resolved_date', pd.resolved_date,
+              'status', pd.status,
+              'notes', pd.notes
+            )
+          )
+          FROM patient_diagnoses pd
+          WHERE pd.clinical_encounter_id = ce.encounter_id
+        ) as diagnoses,
+        -- Get medications as JSON array
+        (
+          SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'prescription_id', mp.prescription_id,
+              'medication_name', mp.medication_name,
+              'dosage_instructions', mp.dosage_instructions,
+              'dosage_value', mp.dosage_value,
+              'frequency', mp.frequency,
+              'duration', mp.duration,
+              'special_instructions', mp.special_instructions,
+              'route_of_administration', mp.route_of_administration,
+              'quantity_prescribed', mp.quantity_prescribed,
+              'refills_authorized', mp.refills_authorized,
+              'start_date', mp.start_date,
+              'end_date', mp.end_date,
+              'prescription_status', mp.prescription_status
+            )
+          )
+          FROM medication_prescriptions mp
+          WHERE mp.clinical_encounter_id = ce.encounter_id
+        ) as prescribedMedications
       FROM clinical_encounters ce
       JOIN patient_records pr ON ce.patient_record_id = pr.patient_id
       JOIN system_users su ON ce.treating_clinician_id = su.user_id
@@ -24,7 +68,7 @@ class VisitService {
     `;
     
     return await database.executeQuery(query);
-  }
+}
 
   async getVisitsByPatientId(patientId) {
     const query = `
@@ -58,6 +102,32 @@ class VisitService {
   }
 
   async getVisitById(visitId) {
+    // const query = `
+    //   SELECT 
+    //     ce.encounter_id as id,
+    //     ce.patient_record_id as patientId,
+    //     CONCAT(pr.first_name, ' ', pr.last_name) as patientName,
+    //     ce.treating_clinician_id,
+    //     CONCAT(su.full_name) as clinicianName,
+    //     ce.visit_type,
+    //     ce.encounter_date as visitDate,
+    //     ce.chief_complaint,
+    //     ce.subjective_assessment,
+    //     ce.objective_findings,
+    //     ce.clinical_assessment,
+    //     ce.treatment_plan,
+    //     ce.vital_signs,
+    //     ce.followup_instructions,
+    //     ce.next_visit_date,
+    //     ce.encounter_status as status,
+    //     ce.visit_duration as duration,
+    //     ce.created_at,
+    //     ce.updated_at
+    //   FROM clinical_encounters ce
+    //   JOIN patient_records pr ON ce.patient_record_id = pr.patient_id
+    //   JOIN system_users su ON ce.treating_clinician_id = su.user_id
+    //   WHERE ce.encounter_id = ?
+    // `;
     const query = `
       SELECT 
         ce.encounter_id as id,
@@ -78,12 +148,51 @@ class VisitService {
         ce.encounter_status as status,
         ce.visit_duration as duration,
         ce.created_at,
-        ce.updated_at
+        -- Get diagnoses as JSON array
+        (
+          SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'diagnosis_id', pd.diagnosis_id,
+              'diagnosis_name', pd.diagnosis_name,
+              'diagnosis_code', pd.diagnosis_code,
+              'diagnosis_type', pd.diagnosis_type,
+              'diagnosis_date', pd.diagnosis_date,
+              'resolved_date', pd.resolved_date,
+              'status', pd.status,
+              'notes', pd.notes
+            )
+          )
+          FROM patient_diagnoses pd
+          WHERE pd.clinical_encounter_id = ce.encounter_id
+        ) as diagnoses,
+        -- Get medications as JSON array
+        (
+          SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'prescription_id', mp.prescription_id,
+              'medication_name', mp.medication_name,
+              'dosage_instructions', mp.dosage_instructions,
+              'dosage_value', mp.dosage_value,
+              'frequency', mp.frequency,
+              'duration', mp.duration,
+              'special_instructions', mp.special_instructions,
+              'route_of_administration', mp.route_of_administration,
+              'quantity_prescribed', mp.quantity_prescribed,
+              'refills_authorized', mp.refills_authorized,
+              'start_date', mp.start_date,
+              'end_date', mp.end_date,
+              'prescription_status', mp.prescription_status
+            )
+          )
+          FROM medication_prescriptions mp
+          WHERE mp.clinical_encounter_id = ce.encounter_id
+        ) as prescribedMedications
       FROM clinical_encounters ce
       JOIN patient_records pr ON ce.patient_record_id = pr.patient_id
       JOIN system_users su ON ce.treating_clinician_id = su.user_id
       WHERE ce.encounter_id = ?
     `;
+    
     
     const visits = await database.executeQuery(query, [visitId]);
     
@@ -156,6 +265,58 @@ class VisitService {
 
     const visitId = result.insertId;
 
+    //Insert dignosis
+    if (visitData.diagnosis && Array.isArray(visitData.diagnosis)) {
+      for (const diagnosisName of visitData.diagnosis) {
+        const diagnosisQuery = `
+          INSERT INTO patient_diagnoses (
+            patient_record_id, clinical_encounter_id, diagnosis_name, 
+            diagnosis_date, status, diagnosis_type
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        
+        await database.executeQuery(diagnosisQuery, [
+          visitData.patient_record_id,
+          visitId,
+          diagnosisName,
+          visitData.encounter_date || new Date(),
+          'active',
+          'primary'
+        ]);
+      }
+    }
+    //Insert prescriptions
+    if (visitData.prescribedMedications && Array.isArray(visitData.prescribedMedications)) {
+      for (const medication of visitData.prescribedMedications) {
+        const medicationQuery = `
+          INSERT INTO medication_prescriptions (
+            clinical_encounter_id, medication_name, dosage_instructions,
+            dosage_value, frequency, duration, special_instructions,
+            route_of_administration, quantity_prescribed, refills_authorized,
+            start_date, end_date, prescription_status, prescribed_by_clinician
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const dosageInstructions = `${medication.dosage} ${medication.frequency} for ${medication.duration}`;
+        
+        await database.executeQuery(medicationQuery, [
+          visitId,
+          medication.name,
+          dosageInstructions,
+          medication.dosage,
+          medication.frequency,
+          medication.duration,
+          medication.special_instructions || null,
+          medication.route || 'oral', // Default to oral if not specified
+          medication.quantity || null,
+          medication.refills || 0,
+          visitData.encounter_date || new Date(),
+          medication.end_date || null,
+          'active',
+          visitData.treating_clinician_id
+        ]);
+      }
+    }
     // Update patient's last visit date
     const patientService = require('./patient.service');
     await patientService.updateLastVisitDate(visitData.patient_record_id, new Date());

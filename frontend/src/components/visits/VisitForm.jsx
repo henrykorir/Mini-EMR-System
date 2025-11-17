@@ -148,7 +148,7 @@ const VisitForm = ({ patient, patients, onSubmit, onClose }) => {
       }));
     }
   };
-
+console.log("visitfordata: ", formData);
   const selectedPatient = patients.find(p => p.id === formData.patientId);
 
   return (

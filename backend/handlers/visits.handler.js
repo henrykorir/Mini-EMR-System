@@ -84,21 +84,19 @@ async function handleGetVisitDetails(request, response) {
 }
 
 async function handleCreateVisit(request, response) {
+  console.log("visitcreatedata: ", request.body)
   try {
     const {
-      patient_record_id,
-      treating_clinician_id,
-      visit_type,
-      chief_complaint,
-      subjective_assessment,
-      objective_findings,
-      clinical_assessment,
-      treatment_plan,
-      vital_signs,
-      followup_instructions,
-      next_visit_date,
-      visit_duration
+      patientId,
+      visitDate,
+      diagnosis,
+      prescribedMedications,
+      notes,
+      vitalSigns
     } = request.body;
+
+    const patient_record_id = patientId;
+    const treating_clinician_id = 1; // In real app, get from auth token
 
     // Required field validation
     if (!patient_record_id || !treating_clinician_id) {
@@ -109,18 +107,13 @@ async function handleCreateVisit(request, response) {
     }
 
     const newVisit = await visitService.createVisit({
-      patient_record_id,
-      treating_clinician_id: treating_clinician_id || request.user.user_id,
-      visit_type,
-      chief_complaint,
-      subjective_assessment,
-      objective_findings,
-      clinical_assessment,
-      treatment_plan,
-      vital_signs,
-      followup_instructions,
-      next_visit_date,
-      visit_duration
+      patient_record_id: patientId,
+      treating_clinician_id: treating_clinician_id,
+      encounter_date: visitDate,
+      clinical_assessment: notes,
+      vital_signs: vitalSigns,
+      diagnosis: diagnosis, // Array of diagnosis names
+      prescribedMedications: prescribedMedications // Array of medication objects
     });
 
     response.status(201).json({

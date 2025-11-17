@@ -69,10 +69,10 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
           
           <div className="sidebar-actions">
-            <button className="nav-item">
+            {/* <button className="nav-item">
               <Settings size={20} />
               <span>Settings</span>
-            </button>
+            </button> */}
             <button onClick={logout} className="nav-item logout-item">
               <LogOut size={20} />
               <span>Logout</span>

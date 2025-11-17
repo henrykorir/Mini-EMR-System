@@ -10,56 +10,22 @@ const { authenticateToken, validateClinicalAccess } = require('./middleware/secu
 
 const app = express();
 
+app.set('trust proxy', 1); // Trust first proxy
+// Temporary development CORS setup
+app.use(cors({
+  origin: true, // Allow any origin in development
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 // Security middleware
-const corsOptions = {
-  origin: 'https://ubiquitous-rotary-phone-q65q5g9j7r3w5x-3000.app.github.dev', // Frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true, // If you need to send cookies or authorization headers
-};
-
-// Enable CORS middleware with the specific options
-// app.use(cors(corsOptions));
-app.use(cors({origin: '*'}));
-
-// Helmet security configuration
-// app.use(helmet({
-//   crossOriginResourcePolicy: { policy: 'same-site' },  // Ensure resources are not leaked across origins
-//   contentSecurityPolicy: {
-//     directives: {
-//       defaultSrc: ["'self'"], // Allow only same-origin content
-//       scriptSrc: ["'self'"], // Only allow scripts from same origin
-//       styleSrc: ["'self'"],  // Only allow styles from same origin
-//       imgSrc: ["'self'"],    // Only allow images from same origin
-//     },
-//   },
-//   frameguard: { action: 'deny' }, // Prevent embedding in an iframe (clickjacking protection)
-//   xssFilter: true,               // Enable XSS protection
-//   noSniff: true,                 // Prevent sniffing the MIME type
-//   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }, // HTTP Strict Transport Security
-// }));
-
-// Log failed CORS requests manually
-app.use((req, res, next) => {
-  // Catching preflight OPTIONS requests which are automatically handled by CORS
-  if (req.method === 'OPTIONS') {
-    console.log(`[CORS Preflight] Failed OPTIONS request: ${req.originalUrl}`);
-  }
-
-  // Catch CORS errors when accessing resources (if CORS is violated)
-  res.on('finish', () => {
-    if (res.statusCode === 403) {
-      console.log(`[CORS Error] Forbidden request due to CORS policy: ${req.method} ${req.originalUrl}`);
-    }
-  });
-
-  next();
-});
+// app.use(helmet());
 
 // Rate limiting
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 200,
   message: {
     error: 'Too many requests from this IP',
     details: 'Please try again after 15 minutes'
@@ -72,9 +38,14 @@ app.use(apiLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware
+// Request logging middleware with CORS debug info
 app.use((request, response, next) => {
   console.log(`${new Date().toISOString()} - ${request.method} ${request.path}`);
+  console.log('CORS Debug:', {
+    origin: request.headers.origin,
+    'access-control-request-method': request.headers['access-control-request-method'],
+    'access-control-request-headers': request.headers['access-control-request-headers']
+  });
   next();
 });
 
@@ -100,7 +71,7 @@ app.get('/system/health', async (request, response) => {
   }
 });
 
-// Authentication routes
+// Authentication routes (should be before authenticateToken middleware)
 app.post('/api/auth/register', authHandlers.handleUserRegistration);
 app.post('/api/auth/login', authHandlers.handleUserLogin);
 app.post('/api/auth/logout', authHandlers.handleUserLogout);
@@ -120,7 +91,7 @@ app.put('/api/patients/:id', validateClinicalAccess, patientHandlers.handleUpdat
 app.delete('/api/patients/:id', validateClinicalAccess, patientHandlers.handleDeletePatient);
 app.get('/api/patients/search', patientHandlers.handleSearchPatients);
 
-// Visit routes (matching the API service)
+// Visit routes
 app.get('/api/visits', visitHandlers.handleGetVisits);
 app.post('/api/visits', validateClinicalAccess, visitHandlers.handleCreateVisit);
 app.get('/api/visits/patient/:patientId', visitHandlers.handleGetPatientVisits);

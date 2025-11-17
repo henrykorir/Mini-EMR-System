@@ -55,26 +55,30 @@ async function handleGetPatientDetails(request, response) {
 }
 
 async function handleCreatePatient(request, response) {
+  console.log("requ: ", request.body);
   try {
     const {
-      medical_record_number,
-      id_number,
+      idNumber: medical_record_number,
+      idNumber: id_number,
       primary_provider_id,
-      first_name,
-      last_name,
-      date_of_birth,
+      name,
+      dateOfBirth: date_of_birth,
       gender,
-      contact_phone,
+      contact: contact_phone,
       email,
-      residential_address,
+      address: residential_address,
       emergency_contact_name,
-      emergency_contact_phone,
+      emergencyContact: emergency_contact_phone,
       insurance_provider,
       insurance_policy_number,
-      significant_medical_history,
-      known_allergies,
-      blood_type
+      medicalHistory:significant_medical_history,
+      allergies: known_allergies,
+      bloodType: blood_type
     } = request.body;
+
+    const names = name.split(' ');
+    const first_name = names[0];
+    const last_name = names[1] || '';
 
     // Required field validation
     if (!medical_record_number || !first_name || !last_name || !date_of_birth || !gender) {
@@ -102,7 +106,9 @@ async function handleCreatePatient(request, response) {
       significant_medical_history,
       known_allergies,
       blood_type,
-      created_by_user: request.user.user_id
+      patient_status: 'ACTIVE',
+      last_visit_date: '020-01-01',
+      created_by_user: 1
     });
 
     response.status(201).json({
