@@ -1,11 +1,11 @@
 // Database configuration settings
 const databaseConfig = {
   connection: {
-    host: process.env.DB_HOST || 'mysql-8wnk.railway.internal',
-    port: process.env.DB_PORT || '3306',
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
     user: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME || 'medi_grind_db',
+    database: process.env.DB_NAME,
     charset: 'utf8mb4',
     timeout: 60000,
     acquireTimeout: 60000,
