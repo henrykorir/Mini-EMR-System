@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://stunning-space-sniffle-7wj9j4rg4x3w69w-8080.app.github.dev/api';
+const API_BASE_URL = 'https://mini-emr-system-production.up.railway.app/api';
 
 // SWR Fetcher function
 const fetcher = async (url, options = {}) => {
