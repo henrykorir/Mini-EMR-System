@@ -1,5 +1,5 @@
-const mysql = require('mysql2'); // Import mysql2 instead of mysql
-const dbConfig = require('../config/db.config');
+const mysql = require('mysql2'); // Use mysql2 for the connection pool
+const dbConfig = require('../config/db.config');  // Your database config
 
 class DatabaseManager {
   constructor() {
@@ -7,9 +7,10 @@ class DatabaseManager {
     this.init();
   }
 
+  // Initialize the connection pool
   init() {
     try {
-      // Create a connection pool using mysql2
+      // Creating the connection pool with mysql2
       this.connectionPool = mysql.createPool(dbConfig.connection);
       console.log('Database connection pool established successfully');
     } catch (poolError) {
@@ -18,77 +19,85 @@ class DatabaseManager {
     }
   }
 
-  executeQuery(sql, parameters = []) {
-    return new Promise((resolve, reject) => {
-      // Get a connection from the pool
-      this.connectionPool.getConnection((connError, connection) => {
-        if (connError) {
-          console.error('Database connection error:', connError.message);
-          return reject(new Error('Service temporarily unavailable'));
+  // Execute query without returning a Promise; instead, using callbacks inside the method
+  executeQuery(sql, parameters = [], callback) {
+    this.connectionPool.getConnection((connError, connection) => {
+      if (connError) {
+        console.error('Database connection error:', connError.message);
+        return callback(new Error('Service temporarily unavailable'), null);  // Return error in callback
+      }
+
+      connection.query(sql, parameters, (queryError, results) => {
+        connection.release();  // Always release the connection after use
+
+        if (queryError) {
+          console.error('Query execution failed:', queryError.message);
+          return callback(new Error('Database operation failed'), null);  // Return error in callback
         }
 
-        // Use the promise-based query execution provided by mysql2
-        connection.execute(sql, parameters)  // `execute` is preferred in mysql2
-          .then(([results]) => {
-            connection.release();
-            resolve(results);  // Resolve with the query results
-          })
-          .catch((queryError) => {
-            connection.release();
-            console.error('Query execution failed:', queryError.message);
-            reject(new Error('Database operation failed'));
-          });
+        callback(null, results);  // Return results in callback
       });
     });
   }
 
-  executeTransaction(operations) {
-    return new Promise((resolve, reject) => {
-      // Get a connection from the pool
-      this.connectionPool.getConnection((connError, connection) => {
-        if (connError) {
-          return reject(new Error('Unable to start transaction'));
+  // Execute transaction using callbacks instead of Promises
+  executeTransaction(operations, callback) {
+    this.connectionPool.getConnection((connError, connection) => {
+      if (connError) {
+        return callback(new Error('Unable to start transaction'), null);  // Return error if connection fails
+      }
+
+      connection.beginTransaction((transactionError) => {
+        if (transactionError) {
+          connection.release();
+          return callback(new Error('Transaction initialization failed'), null);  // Return error if transaction fails
         }
 
-        connection.beginTransaction(async (transactionError) => {
-          if (transactionError) {
-            connection.release();
-            return reject(new Error('Transaction initialization failed'));
-          }
+        const transactionResults = [];
 
-          try {
-            const transactionResults = [];
-
-            for (const operation of operations) {
-              const result = await connection.execute(operation.sql, operation.values);  // Use execute() for query
-              transactionResults.push(result[0]);  // Extract results from array
-            }
-
-            // Commit the transaction
+        // Execute each operation within the transaction
+        const executeOperations = (index) => {
+          if (index >= operations.length) {
+            // All operations are done, commit the transaction
             connection.commit((commitError) => {
               if (commitError) {
                 connection.rollback(() => {
                   connection.release();
-                  reject(new Error('Transaction commit failed'));
+                  callback(new Error('Transaction commit failed'), null);  // Return commit error in callback
                 });
               } else {
                 connection.release();
-                resolve(transactionResults);
+                callback(null, transactionResults);  // Return successful results in callback
               }
             });
-          } catch (operationError) {
-            connection.rollback(() => {
-              connection.release();
-              reject(operationError);
-            });
+            return;
           }
-        });
+
+          const operation = operations[index];
+
+          // Execute the current operation
+          connection.query(operation.sql, operation.values, (error, result) => {
+            if (error) {
+              connection.rollback(() => {
+                connection.release();
+                callback(error, null);  // Return error in callback
+              });
+            } else {
+              transactionResults.push(result);  // Add result to transaction results
+              executeOperations(index + 1);  // Continue to next operation
+            }
+          });
+        };
+
+        executeOperations(0);  // Start executing the first operation
       });
     });
   }
 
-  healthCheck() {
-    return this.executeQuery('SELECT 1 as status');
+  // Health check method to test if the database is available
+  healthCheck(callback) {
+    // Perform a simple health check query to ensure the database is available
+    this.executeQuery('SELECT 1 as status', [], callback);  // Call executeQuery with a simple query
   }
 }
 
