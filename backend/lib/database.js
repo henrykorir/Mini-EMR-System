@@ -21,6 +21,7 @@ class DatabaseManager {
     return new Promise((resolve, reject) => {
       this.connectionPool.getConnection((connError, connection) => {
         if (connError) {
+          console.log("Parameters: ", parameters)
           console.error('Database connection error:', connError.message);
           return reject(new Error('Service temporarily unavailable'));
         }
