@@ -1,4 +1,4 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2'); // Import mysql2 instead of mysql
 const dbConfig = require('../config/db.config');
 
 class DatabaseManager {
@@ -9,6 +9,7 @@ class DatabaseManager {
 
   init() {
     try {
+      // Create a connection pool using mysql2
       this.connectionPool = mysql.createPool(dbConfig.connection);
       console.log('Database connection pool established successfully');
     } catch (poolError) {
@@ -17,55 +18,75 @@ class DatabaseManager {
     }
   }
 
-  // Execute a query using the mysql2 promise API
   executeQuery(sql, parameters = []) {
     return new Promise((resolve, reject) => {
-      this.connectionPool.execute(sql, parameters)
-        .then(([results]) => {
-          resolve(results);
-        })
-        .catch((queryError) => {
-          console.error('Query execution failed:', queryError.message);
-          reject(new Error('Database operation failed'));
-        });
-    });
-  }
-
-  // Execute a transaction using the mysql2 promise API
-  executeTransaction(operations) {
-    return new Promise(async (resolve, reject) => {
-      const connection = await this.connectionPool.getConnection().catch((connError) => {
-        return reject(new Error('Unable to start transaction'));
-      });
-
-      try {
-        await connection.beginTransaction();
-
-        const transactionResults = [];
-
-        for (const operation of operations) {
-          try {
-            const [result] = await connection.execute(operation.sql, operation.values);
-            transactionResults.push(result);
-          } catch (operationError) {
-            await connection.rollback();
-            connection.release();
-            return reject(operationError);
-          }
+      // Get a connection from the pool
+      this.connectionPool.getConnection((connError, connection) => {
+        if (connError) {
+          console.error('Database connection error:', connError.message);
+          return reject(new Error('Service temporarily unavailable'));
         }
 
-        await connection.commit();
-        connection.release();
-        resolve(transactionResults);
-      } catch (transactionError) {
-        await connection.rollback();
-        connection.release();
-        reject(new Error('Transaction failed: ' + transactionError.message));
-      }
+        // Use the promise-based query execution provided by mysql2
+        connection.execute(sql, parameters)  // `execute` is preferred in mysql2
+          .then(([results]) => {
+            connection.release();
+            resolve(results);  // Resolve with the query results
+          })
+          .catch((queryError) => {
+            connection.release();
+            console.error('Query execution failed:', queryError.message);
+            reject(new Error('Database operation failed'));
+          });
+      });
     });
   }
 
-  // Health check to verify if the DB is reachable
+  executeTransaction(operations) {
+    return new Promise((resolve, reject) => {
+      // Get a connection from the pool
+      this.connectionPool.getConnection((connError, connection) => {
+        if (connError) {
+          return reject(new Error('Unable to start transaction'));
+        }
+
+        connection.beginTransaction(async (transactionError) => {
+          if (transactionError) {
+            connection.release();
+            return reject(new Error('Transaction initialization failed'));
+          }
+
+          try {
+            const transactionResults = [];
+
+            for (const operation of operations) {
+              const result = await connection.execute(operation.sql, operation.values);  // Use execute() for query
+              transactionResults.push(result[0]);  // Extract results from array
+            }
+
+            // Commit the transaction
+            connection.commit((commitError) => {
+              if (commitError) {
+                connection.rollback(() => {
+                  connection.release();
+                  reject(new Error('Transaction commit failed'));
+                });
+              } else {
+                connection.release();
+                resolve(transactionResults);
+              }
+            });
+          } catch (operationError) {
+            connection.rollback(() => {
+              connection.release();
+              reject(operationError);
+            });
+          }
+        });
+      });
+    });
+  }
+
   healthCheck() {
     return this.executeQuery('SELECT 1 as status');
   }
