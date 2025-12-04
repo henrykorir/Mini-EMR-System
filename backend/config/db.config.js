@@ -113,8 +113,13 @@ class DatabaseConfig {
 // Export the connection configuration for your DatabaseManager
 const dbConfig = {
   connection: {
-    ...DatabaseConfig.getConnectionConfig(),
-    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 20,
+    host: process.env.MYSQLHOST || process.env.DB_HOST,
+    port: process.env.MYSQLPORT || process.env.DB_PORT,
+    user: process.env.MYSQLUSER || process.env.DB_USERNAME,
+    password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD,
+    database: process.env.MYSQLDATABASE || process.env.DB_NAME,
+    charset: 'utf8mb4',
+    timeout: 60000,
     acquireTimeout: 60000,
     timeout: 60000
   }
