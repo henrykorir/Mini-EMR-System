@@ -1,5 +1,5 @@
-const mysql = require('mysql2'); // Use mysql2 for the connection pool
-const dbConfig = require('../config/db.config');  // Your database config
+const mysql = require('mysql2'); // Standard callback API
+const dbConfig = require('../config/db.config');
 
 class DatabaseManager {
   constructor() {
@@ -7,11 +7,14 @@ class DatabaseManager {
     this.init();
   }
 
-  // Initialize the connection pool
   init() {
     try {
-      // Creating the connection pool with mysql2
-      this.connectionPool = mysql.createPool(dbConfig.connection);
+      this.connectionPool = mysql.createPool({
+        ...dbConfig.connection,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      });
       console.log('Database connection pool established successfully');
     } catch (poolError) {
       console.error('Failed to create database pool:', poolError.message);
@@ -19,85 +22,91 @@ class DatabaseManager {
     }
   }
 
-  // Execute query without returning a Promise; instead, using callbacks inside the method
-  executeQuery(sql, parameters = [], callback) {
-    this.connectionPool.getConnection((connError, connection) => {
-      if (connError) {
-        console.error('Database connection error:', connError.message);
-        return callback(new Error('Service temporarily unavailable'), null);  // Return error in callback
-      }
-
-      connection.query(sql, parameters, (queryError, results) => {
-        connection.release();  // Always release the connection after use
-
-        if (queryError) {
-          console.error('Query execution failed:', queryError.message);
-          return callback(new Error('Database operation failed'), null);  // Return error in callback
+  executeQuery(sql, parameters = []) {
+    return new Promise((resolve, reject) => {
+      this.connectionPool.execute(sql, parameters, (error, results, fields) => {
+        if (error) {
+          console.error('Query execution failed:', error.message);
+          return reject(new Error('Database operation failed'));
         }
-
-        callback(null, results);  // Return results in callback
+        resolve(results);
       });
     });
   }
 
-  // Execute transaction using callbacks instead of Promises
-  executeTransaction(operations, callback) {
-    this.connectionPool.getConnection((connError, connection) => {
-      if (connError) {
-        return callback(new Error('Unable to start transaction'), null);  // Return error if connection fails
-      }
-
-      connection.beginTransaction((transactionError) => {
-        if (transactionError) {
-          connection.release();
-          return callback(new Error('Transaction initialization failed'), null);  // Return error if transaction fails
+  // Using getConnection for more control
+  executeQueryWithConnection(sql, parameters = []) {
+    return new Promise((resolve, reject) => {
+      this.connectionPool.getConnection((connError, connection) => {
+        if (connError) {
+          console.error('Database connection error:', connError.message);
+          return reject(new Error('Service temporarily unavailable'));
         }
 
-        const transactionResults = [];
+        connection.execute(sql, parameters, (queryError, results) => {
+          connection.release();
+          
+          if (queryError) {
+            console.error('Query execution failed:', queryError.message);
+            return reject(new Error('Database operation failed'));
+          }
+          
+          resolve(results);
+        });
+      });
+    });
+  }
 
-        // Execute each operation within the transaction
-        const executeOperations = (index) => {
-          if (index >= operations.length) {
-            // All operations are done, commit the transaction
-            connection.commit((commitError) => {
-              if (commitError) {
-                connection.rollback(() => {
-                  connection.release();
-                  callback(new Error('Transaction commit failed'), null);  // Return commit error in callback
-                });
-              } else {
-                connection.release();
-                callback(null, transactionResults);  // Return successful results in callback
-              }
+  executeTransaction(operations) {
+    return new Promise((resolve, reject) => {
+      this.connectionPool.getConnection(async (connError, connection) => {
+        if (connError) {
+          return reject(new Error('Unable to start transaction'));
+        }
+
+        try {
+          await new Promise((resolve, reject) => {
+            connection.beginTransaction((transactionError) => {
+              if (transactionError) reject(transactionError);
+              else resolve();
             });
-            return;
+          });
+
+          const transactionResults = [];
+          
+          for (const operation of operations) {
+            const result = await new Promise((resolve, reject) => {
+              connection.execute(operation.sql, operation.values, (error, results) => {
+                if (error) reject(error);
+                else resolve(results);
+              });
+            });
+            transactionResults.push(result);
           }
 
-          const operation = operations[index];
-
-          // Execute the current operation
-          connection.query(operation.sql, operation.values, (error, result) => {
-            if (error) {
-              connection.rollback(() => {
-                connection.release();
-                callback(error, null);  // Return error in callback
-              });
-            } else {
-              transactionResults.push(result);  // Add result to transaction results
-              executeOperations(index + 1);  // Continue to next operation
-            }
+          await new Promise((resolve, reject) => {
+            connection.commit((commitError) => {
+              if (commitError) reject(commitError);
+              else resolve();
+            });
           });
-        };
 
-        executeOperations(0);  // Start executing the first operation
+          connection.release();
+          resolve(transactionResults);
+          
+        } catch (operationError) {
+          connection.rollback(() => {
+            connection.release();
+            console.error('Transaction failed:', operationError.message);
+            reject(new Error('Transaction operation failed'));
+          });
+        }
       });
     });
   }
 
-  // Health check method to test if the database is available
-  healthCheck(callback) {
-    // Perform a simple health check query to ensure the database is available
-    this.executeQuery('SELECT 1 as status', [], callback);  // Call executeQuery with a simple query
+  healthCheck() {
+    return this.executeQuery('SELECT 1 as status');
   }
 }
 
